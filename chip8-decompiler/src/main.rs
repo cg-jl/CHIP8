@@ -17,8 +17,8 @@ enum Argument {
 impl<'a> std::fmt::Display for Argument {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Constant(v) => write!(f, "\x1b[38;5;174m{:x}\x1b[m", v),
-            Self::Register(v) => write!(f, "\x1b[38;5;208mV{:1X}\x1b[m", v),
+            Self::Constant(v) => write!(f, "\x1b[38;5;0m#\x1b[38;5;3m{:x}\x1b[m", v),
+            Self::Register(v) => write!(f, "\x1b[38;5;7mv{:1x}\x1b[m", v),
         }
     }
 }
@@ -201,49 +201,49 @@ impl Instruction {
         Some(value)
     }
 
-    pub fn name_str(&self) -> &'static str {
+    pub const fn name_str(&self) -> &'static str {
         match self {
-            Self::Load { into: _, what: _ } => "LD",
-            Self::Add { into: _, what: _ } => "ADD",
+            Self::Load { into: _, what: _ } => "load",
+            Self::Add { into: _, what: _ } => "add",
             Self::Sub {
                 into: _,
                 what: _,
                 inverted,
             } => {
                 if *inverted {
-                    "SBI"
+                    "subi"
                 } else {
-                    "SUB"
+                    "sub"
                 }
             }
-            Self::And(_, _) => "AND",
-            Self::Or(_, _) => "OR",
-            Self::Xor(_, _) => "XOR",
-            Self::LoadI(_) => "LDI",
-            Self::AddI(_) => "ADDI",
-            Self::SetSound(_) => "SND",
-            Self::LoadR(_) => "LDR",
-            Self::LoadKey(_) => "LDK",
-            Self::Dump(_) => "DMP",
-            Self::Draw(_, _, _) => "DRW",
-            Self::Call(_) => "CALL",
+            Self::And(_, _) => "and",
+            Self::Or(_, _) => "or",
+            Self::Xor(_, _) => "xor",
+            Self::LoadI(_) => "ldi",
+            Self::AddI(_) => "addi",
+            Self::SetSound(_) => "snd",
+            Self::LoadR(_) => "ldr",
+            Self::LoadKey(_) => "ldk",
+            Self::Dump(_) => "dump",
+            Self::Draw(_, _, _) => "draw",
+            Self::Call(_) => "call",
             Self::Jump { adds_v0, target: _ } => {
                 if *adds_v0 {
-                    "JP0"
+                    "jmp0"
                 } else {
-                    "JP"
+                    "jmp"
                 }
             }
-            Self::Bcd(_) => "BCD",
-            Self::Random(_, _) => "RND",
+            Self::Bcd(_) => "bcd",
+            Self::Random(_, _) => "rand",
             Self::SkipKey {
                 register: _,
                 is_negated,
             } => {
                 if *is_negated {
-                    "SNK"
+                    "snkp" // skip no key present
                 } else {
-                    "SIK"
+                    "skp" // skip key present
                 }
             }
             Self::SkipValue {
@@ -252,25 +252,25 @@ impl Instruction {
                 is_negated,
             } => {
                 if *is_negated {
-                    "SNE"
+                    "sneq"
                 } else {
-                    "SEQ"
+                    "seq"
                 }
             }
-            Self::SetDelay(_) => "DLY",
-            Self::LoadDelay(_) => "LDD",
-            Self::Ret => "RET",
-            Self::Clear => "CLR",
-            Self::Font(_) => "FNT",
+            Self::SetDelay(_) => "dly",
+            Self::LoadDelay(_) => "loadd",
+            Self::Ret => "ret",
+            Self::Clear => "clr",
+            Self::Font(_) => "font",
             Self::Shift {
                 what: _,
                 into: _,
                 is_left,
             } => {
                 if *is_left {
-                    "SHL"
+                    "shl"
                 } else {
-                    "SHR"
+                    "shr"
                 }
             }
         }
@@ -312,14 +312,16 @@ impl Instruction {
                 is_negated: _,
             } => write!(f, "{}", what),
             Self::LoadI(what) => {
-                if let Some(name) = sprites.get(&what.value()) {
-                    write!(f, "\x1b[38;5;176m@{:x}", name)
+                write!(f, "\x1b[38;5;10m ")?;
+                let value = what.value();
+                if sprites.contains(&value) {
+                    write!(f, "sprite@{:x}", value)
                 } else {
-                    write!(f, "\x1b[38;5;176m{}", what)
+                    write!(f, "{}", what)
                 }
             }
             Self::Jump { adds_v0: _, target } | Self::Call(target) => {
-                write!(f, "\x1b[38;5;68m")?;
+                write!(f, "\x1b[38;5;6m")?;
                 if let Some(name) = labels.get(&target.value()) {
                     write!(f, "{}", name)
                 } else {
@@ -400,29 +402,18 @@ struct Program<'a> {
 impl<'a> TryFrom<&'a [u8]> for Program<'a> {
     type Error = &'static str;
     fn try_from(buffer: &'a [u8]) -> std::result::Result<Self, Self::Error> {
-        let mut first_jump = read_u16(&buffer)
+        let main = read_u16(buffer)
             .and_then(Instruction::from_opcode)
-            .filter(|x| {
-                matches!(
-                    x,
-                    Instruction::Jump {
-                        adds_v0: false,
-                        target: _
-                    }
-                )
-            })
-            .map(|x| {
-                if let Instruction::Jump { adds_v0: _, target } = x {
-                    target.value()
+            .and_then(|inst| {
+                // an instruction
+                if let Instruction::Jump { adds_v0: _, target } = inst {
+                    Some(target.value())
                 } else {
-                    unreachable!();
+                    None
                 }
-            });
-        if first_jump.is_none() {
-            return Err("Expected a jump, malformed binary.");
-        }
+            })
+            .unwrap_or(0x200);
 
-        let first_jump = first_jump.take().unwrap();
         let mut label_queue = VecDeque::new();
         let mut labels = HashMap::new();
         let mut instructions = BTreeMap::new();
@@ -438,11 +429,11 @@ impl<'a> TryFrom<&'a [u8]> for Program<'a> {
 
         let mut visited = HashSet::new();
 
-        labels.insert(first_jump, String::from("main"));
-        label_queue.push_back(first_jump);
+        labels.insert(main, String::from("main"));
+        label_queue.push_back(main);
 
         while let Some(next_label) = label_queue.pop_front() {
-            for (address, opcode, next_op) in U16Reader(&buffer, 0)
+            for (address, opcode, next_op) in U16Reader(buffer, 0)
                 .starting_from(next_label)
                 .map_while(|(address, opcode)| {
                     if visited.contains(&address) {
@@ -490,7 +481,7 @@ impl<'a> Display for Program<'a> {
             }
             write!(
                 f,
-                "\x1b[38;5;239m{:04X} \x1b[38;5;236m{:04x} \x1b[38;5;204m{} ",
+                "\x1b[38;5;0m{:04X} \x1b[38;5;8m{:04x} \x1b[38;5;204m{} ",
                 addr,
                 opcode,
                 instruction.name_str()
