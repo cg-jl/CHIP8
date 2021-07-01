@@ -21,6 +21,28 @@ pub struct CHIP8 {
 impl CHIP8 {
     const DISPLAY_START: usize = 0x1000 - 0x100;
 
+    pub fn is_chip8_key(key: u8) -> bool {
+        matches!(
+            key,
+            b'1' | b'2'
+                | b'3'
+                | b'q'
+                | b'w'
+                | b'e'
+                | b'a'
+                | b's'
+                | b'd'
+                | b'z'
+                | b'x'
+                | b'c'
+                | b'4'
+                | b'r'
+                | b'f'
+                | b'v'
+        )
+    }
+
+    #[inline(always)]
     fn _00e0(&mut self) {
         // clear the screen.
         for i in Self::DISPLAY_START..self.memory.len() {
@@ -29,17 +51,20 @@ impl CHIP8 {
         self.clear_flag = true;
     }
 
+    #[inline(always)]
     fn _00ee(&mut self) {
         // return
         self.sp -= 1;
         self.pc = self.stack[self.sp];
     }
 
+    #[inline(always)]
     fn _1nnn(&mut self) {
         // jump nnn
         self.pc = self.op & 0xfff;
     }
 
+    #[inline(always)]
     fn _2nnn(&mut self) {
         // call nnn
         self.stack[self.sp] = self.pc;
@@ -47,6 +72,7 @@ impl CHIP8 {
         self.pc = self.op & 0xfff;
     }
 
+    #[inline(always)]
     fn _3xnn(&mut self) {
         // skip if vx == nn
         let x = (self.op >> 8) & 0xf;
@@ -57,6 +83,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _4xnn(&mut self) {
         // skip if vx != nn
         let x = (self.op >> 8) & 0xf;
@@ -67,6 +94,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _5xy0(&mut self) {
         // skip if vx == vy
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -76,6 +104,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _6xnn(&mut self) {
         // vx = nn.
         let x = (self.op >> 8) & 0xf;
@@ -83,6 +112,7 @@ impl CHIP8 {
         self.registers[x as usize] = nn;
     }
 
+    #[inline(always)]
     fn _7xnn(&mut self) {
         // vx += nn (no carry set).
         let x = (self.op >> 8) & 0xf;
@@ -90,30 +120,35 @@ impl CHIP8 {
         self.registers[x as usize] = self.registers[x as usize].wrapping_add(nn);
     }
 
+    #[inline(always)]
     fn _8xy0(&mut self) {
         // vx = vy.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
         self.registers[x as usize] = self.registers[y as usize];
     }
 
+    #[inline(always)]
     fn _8xy1(&mut self) {
         // vx |= vy.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
         self.registers[x as usize] |= self.registers[y as usize];
     }
 
+    #[inline(always)]
     fn _8xy2(&mut self) {
         // vx &= vy.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
         self.registers[x as usize] &= self.registers[y as usize];
     }
 
+    #[inline(always)]
     fn _8xy3(&mut self) {
         // vx ^= vy.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
         self.registers[x as usize] ^= self.registers[y as usize];
     }
 
+    #[inline(always)]
     fn _8xy4(&mut self) {
         // vx += vy (sets VF if overflow occurs).
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -123,6 +158,7 @@ impl CHIP8 {
         self.registers[0xf] = if overflowed { 1 } else { 0 };
     }
 
+    #[inline(always)]
     fn _8xy5(&mut self) {
         // vx -= vy (sets VF if no overflow occurs).
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -132,6 +168,7 @@ impl CHIP8 {
         self.registers[0xf] = if !overflowed { 1 } else { 0 };
     }
 
+    #[inline(always)]
     fn _8xy6(&mut self) {
         // shift right vx into vy and store the overflowed bit into VF.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -140,6 +177,7 @@ impl CHIP8 {
         self.registers[0xf] = if overflowed { 1 } else { 0 };
     }
 
+    #[inline(always)]
     fn _8xy7(&mut self) {
         // reversed add: x = y - x;
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -149,6 +187,7 @@ impl CHIP8 {
         self.registers[0xf] = if !overflowed { 1 } else { 0 };
     }
 
+    #[inline(always)]
     fn _8xye(&mut self) {
         // shift left vx into vy and store the overflowed bit into VF.
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -157,6 +196,7 @@ impl CHIP8 {
         self.registers[0xf] = if overflowed { 1 } else { 0 };
     }
 
+    #[inline(always)]
     fn _9xy0(&mut self) {
         // skip if vx != vy
         let (x, y) = (self.op >> 8 & 0xf, self.op >> 4 & 0xf);
@@ -165,17 +205,20 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _annn(&mut self) {
         // set I to nnn.
         self.i = self.op & 0xfff;
     }
 
+    #[inline(always)]
     fn _bnnn(&mut self) {
         // jump to nnn + v0.
         let v0 = self.registers[0] as u16;
         self.pc = (self.op & 0xfff).wrapping_add(v0);
     }
 
+    #[inline(always)]
     fn _cxnn(&mut self) {
         // random & nn -> vx
         let x = self.op >> 8 & 0xf;
@@ -200,6 +243,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _dxyn(&mut self) {
         // draw at x, y, with n height.
         let x = self.op >> 8 & 0xf;
@@ -225,6 +269,7 @@ impl CHIP8 {
         self.draw_flag = true;
         self.registers[0xf] = flag;
     }
+    #[inline(always)]
     fn _ex9e(&mut self) {
         // if key == vx then skip
         let x = self.op >> 8 & 0xf;
@@ -235,6 +280,7 @@ impl CHIP8 {
             self.pc += 2;
         }
     }
+    #[inline(always)]
     fn _exa1(&mut self) {
         // if key != vx then skip
         let x = self.op >> 8 & 0xf;
@@ -245,6 +291,7 @@ impl CHIP8 {
             self.pc += 2;
         }
     }
+    #[inline(always)]
     fn _fx07(&mut self) {
         let x = self.op >> 8 & 0xf;
         if self.registers[x as usize] == self.delay_timer.load(std::sync::atomic::Ordering::SeqCst)
@@ -253,11 +300,13 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _fx0a(&mut self) {
         // blocks until a key is pressed.
         self.key_wait_target = Some((self.op >> 8 & 0xf) as usize);
     }
 
+    #[inline(always)]
     fn _fx15(&mut self) {
         // sets delay timer to vx.
         let x = self.op >> 8 & 0xf;
@@ -269,18 +318,21 @@ impl CHIP8 {
 
     // fx18 not implemented as not dealing with sounds :|
 
+    #[inline(always)]
     fn _fx1e(&mut self) {
         // I += vx;
         let x = self.op >> 8 & 0xf;
         self.i = self.i.wrapping_add(x);
     }
 
+    #[inline(always)]
     fn _fx29(&mut self) {
         // i = font[vx]
         let x = self.registers[(self.op >> 8 & 0xf) as usize] as u16 & 0xf;
         self.i = x * 5;
     }
 
+    #[inline(always)]
     fn _fx33(&mut self) {
         // bcd
         let x = self.op >> 8 & 0xf;
@@ -291,6 +343,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _fx55(&mut self) {
         // dump registers until (and including) vx.
         let x = (self.op >> 8 & 0xf) as usize;
@@ -299,6 +352,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline(always)]
     fn _fx65(&mut self) {
         // same as above, but loading
         let x = (self.op >> 8 & 0xf) as usize;
@@ -307,6 +361,7 @@ impl CHIP8 {
         }
     }
 
+    #[inline]
     fn exec(&mut self) {
         let (a, c, d) = (self.op >> 12, self.op >> 4 & 0xf, self.op & 0xf);
         match (a, c, d) {
@@ -354,25 +409,7 @@ impl CHIP8 {
     }
 
     pub fn key(&mut self, k: u8) {
-        self.key = match k {
-            b'1' => Some(1),
-            b'2' => Some(2),
-            b'3' => Some(3),
-            b'q' => Some(4),
-            b'w' => Some(5),
-            b'e' => Some(6),
-            b'a' => Some(7),
-            b's' => Some(8),
-            b'd' => Some(9),
-            b'z' => Some(10),
-            b'x' => Some(0),
-            b'c' => Some(11),
-            b'4' => Some(12),
-            b'r' => Some(13),
-            b'f' => Some(14),
-            b'v' => Some(15),
-            _ => None,
-        };
+        self.key = if Self::is_chip8_key(k) { Some(k) } else { None };
     }
 
     pub fn new() -> Self {
